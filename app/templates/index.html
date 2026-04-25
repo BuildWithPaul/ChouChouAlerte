@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+    <!-- Header with actions -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-800">My Journeys</h1>
+        <div class="flex gap-3">
+            <a href="{{ url_for('main.telegram_setup') }}"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg {% if telegram_config and telegram_config.verified %}bg-green-50 text-green-700 border border-green-200{% else %}bg-orange-50 text-orange-700 border border-orange-200{% endif %} hover:opacity-80 transition text-sm font-medium">
+                {% if telegram_config and telegram_config.verified %}✅ Telegram{% else %}⚙️ Setup Telegram{% endif %}
+            </a>
+            <a href="{{ url_for('main.add_journey') }}"
+               class="inline-flex items-center gap-2 bg-sncf-blue text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium">
+                + Add Journey
+            </a>
+        </div>
+    </div>
+
+    {% if not journeys %}
+    <div class="text-center py-16">
+        <div class="text-6xl mb-4">🚆</div>
+        <h2 class="text-xl font-semibold text-gray-700">No journeys yet</h2>
+        <p class="text-gray-500 mt-2">Add your first journey to start receiving disruption alerts</p>
+        <a href="{{ url_for('main.add_journey') }}"
+           class="inline-block mt-6 bg-sncf-blue text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition font-medium">
+            Add your first journey
+        </a>
+    </div>
+    {% else %}
+    <div class="grid gap-4">
+        {% for journey in journeys %}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden {% if not journey.active %}opacity-60{% endif %}">
+            <div class="p-5">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <!-- Route display -->
+                        <div class="flex items-center gap-3 text-lg font-semibold text-gray-800">
+                            <span>{{ journey.departure_station_name }}</span>
+                            <svg class="w-5 h-5 text-sncf-blue shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                            <span>{{ journey.arrival_station_name }}</span>
+                        </div>
+                        <!-- Time slot -->
+                        <div class="mt-2 flex items-center gap-2 text-gray-500 text-sm">
+                            <span>🕐 {{ journey.time_start }} - {{ journey.time_end }}</span>
+                        </div>
+                        <!-- Days of week -->
+                        <div class="mt-3 flex gap-1">
+                            {% set days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] %}
+                            {% set active_days = journey.get_days_list() %}
+                            {% for i in range(7) %}
+                            <span class="w-8 h-8 flex items-center justify-center rounded-full text-xs font-bold
+                                {% if i in active_days %}bg-sncf-blue text-white{% else %}bg-gray-100 text-gray-400{% endif %}">
+                                {{ days[i] }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <!-- Status badge -->
+                    <span class="px-3 py-1 rounded-full text-xs font-medium
+                        {% if journey.active %}bg-green-100 text-green-700{% else %}bg-gray-100 text-gray-500{% endif %}">
+                        {% if journey.active %}Active{% else %}Paused{% endif %}
+                    </span>
+                </div>
+            </div>
+            <!-- Action buttons -->
+            <div class="flex border-t border-gray-50 divide-x divide-gray-50">
+                <button onclick="toggleJourney({{ journey.id }})"
+                        class="flex-1 py-2.5 text-sm font-medium {% if journey.active %}text-orange-600 hover:bg-orange-50{% else %}text-green-600 hover:bg-green-50{% endif %} transition">
+                    {% if journey.active %}⏸ Pause{% else %}▶ Resume{% endif %}
+                </button>
+                <a href="{{ url_for('main.edit_journey', journey_id=journey.id) }}"
+                   class="flex-1 py-2.5 text-center text-sm font-medium text-blue-600 hover:bg-blue-50 transition">
+                    ✏️ Edit
+                </a>
+                <button onclick="deleteJourney({{ journey.id }})"
+                        class="flex-1 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition">
+                    🗑 Delete
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PREFIX = window.APP_PREFIX || '';
+
+async function toggleJourney(id) {
+    const resp = await fetch(PREFIX + '/journey/' + id + '/toggle', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'},
+    });
+    if (resp.ok) location.reload();
+}
+
+async function deleteJourney(id) {
+    if (!confirm('Delete this journey?')) return;
+    const resp = await fetch(PREFIX + '/journey/' + id + '/delete', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token() }}'},
+    });
+    if (resp.ok) location.reload();
+}
+</script>
+{% endblock %}

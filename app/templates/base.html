@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChouChouAlerte</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        sncf: { blue: '#0055A4', red: '#E2001A', gray: '#6B6B6B' }
+                    }
+                }
+            }
+        }
+    </script>
+    <script>window.APP_PREFIX = "{{ config['APPLICATION_ROOT'] }}" === "/" ? "" : "{{ config['APPLICATION_ROOT'] }}";</script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    {% if current_user.is_authenticated %}
+    <nav class="bg-sncf-blue text-white shadow-lg">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="{{ url_for('main.index') }}" class="flex items-center gap-2 text-xl font-bold">
+                🚂 ChouChouAlerte
+            </a>
+            <div class="flex items-center gap-4">
+                {% if current_user.picture %}
+                <img src="{{ current_user.picture }}" alt="" class="w-8 h-8 rounded-full">
+                {% endif %}
+                <span class="text-sm opacity-80">{{ current_user.name }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="text-sm opacity-70 hover:opacity-100">Logout</a>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="max-w-4xl mx-auto px-4 py-6">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="mb-4 p-3 rounded-lg text-sm font-medium
+            {% if category == 'error' %}bg-red-100 text-red-800
+            {% elif category == 'success' %}bg-green-100 text-green-800
+            {% elif category == 'warning' %}bg-yellow-100 text-yellow-800
+            {% else %}bg-blue-100 text-blue-800{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

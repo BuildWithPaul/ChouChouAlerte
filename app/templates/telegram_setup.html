@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">📱 Telegram Setup</h1>
+    <p class="text-gray-500 mb-6">Configure a Telegram bot to receive disruption alerts</p>
+
+    <!-- Step 1: Create bot with BotFather -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Step 1: Create your bot</h2>
+        <div class="space-y-3 text-sm text-gray-600">
+            <div class="flex gap-3">
+                <span class="w-7 h-7 rounded-full bg-sncf-blue text-white flex items-center justify-center text-xs font-bold shrink-0">1</span>
+                <p>Open Telegram and search for <strong>@BotFather</strong></p>
+            </div>
+            <div class="flex gap-3">
+                <span class="w-7 h-7 rounded-full bg-sncf-blue text-white flex items-center justify-center text-xs font-bold shrink-0">2</span>
+                <p>Send <code class="bg-gray-100 px-1 rounded">/newbot</code> and follow the prompts</p>
+            </div>
+            <div class="flex gap-3">
+                <span class="w-7 h-7 rounded-full bg-sncf-blue text-white flex items-center justify-center text-xs font-bold shrink-0">3</span>
+                <p>Copy the <strong>HTTP API token</strong> you receive (looks like <code class="bg-gray-100 px-1 rounded text-xs">123456:ABC-DEF...</code>)</p>
+            </div>
+            <div class="flex gap-3">
+                <span class="w-7 h-7 rounded-full bg-sncf-blue text-white flex items-center justify-center text-xs font-bold shrink-0">4</span>
+                <p>Start a conversation with your new bot and send it any message (e.g. "hello")</p>
+            </div>
+        </div>
+
+        <!-- QR code -->
+        <div class="mt-4 text-center">
+            <button id="showQrBtn" onclick="showQr()"
+                    class="text-sncf-blue text-sm font-medium underline hover:no-underline">
+                Show QR Code for @BotFather
+            </button>
+            <div id="qrContainer" class="hidden mt-3 flex flex-col items-center">
+                <img id="qrImage" src="" alt="BotFather QR Code" class="w-48 h-48">
+                <p class="text-xs text-gray-400 mt-1">Scan to open @BotFather on Telegram</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Enter bot token -->
+    <form method="POST" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Step 2: Connect your bot</h2>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="mb-4">
+            <label for="bot_token" class="block text-sm font-semibold text-gray-700 mb-1">Bot Token</label>
+            <input type="text" id="bot_token" name="bot_token"
+                   value="{{ telegram_config.bot_token if telegram_config else '' }}"
+                   placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                   class="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-sncf-blue focus:outline-none transition font-mono text-sm"
+                   required>
+        </div>
+
+        <div class="mb-5">
+            <label for="chat_id" class="block text-sm font-semibold text-gray-700 mb-1">Chat ID <span class="text-gray-400 font-normal">(optional)</span></label>
+            <p class="text-xs text-gray-500 mb-1">Leave empty and we'll auto-detect it when you send your bot a message</p>
+            <input type="text" id="chat_id" name="chat_id"
+                   value="{{ telegram_config.chat_id if telegram_config else '' }}"
+                   placeholder="Auto-detected"
+                   class="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-sncf-blue focus:outline-none transition font-mono text-sm">
+        </div>
+
+        {% if telegram_config and telegram_config.verified %}
+        <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+            ✅ Your Telegram bot is connected and verified!
+        </div>
+        {% endif %}
+
+        <div class="flex gap-3">
+            <a href="{{ url_for('main.index') }}" class="px-6 py-3 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition font-medium">Back</a>
+            <button type="submit"
+                    class="flex-1 px-6 py-3 rounded-lg bg-sncf-blue text-white hover:bg-blue-700 transition font-medium">
+                Save & Verify
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PREFIX = window.APP_PREFIX || '';
+
+async function showQr() {
+    const container = document.getElementById('qrContainer');
+    const img = document.getElementById('qrImage');
+    const btn = document.getElementById('showQrBtn');
+
+    if (!container.classList.contains('hidden')) {
+        container.classList.add('hidden');
+        btn.textContent = 'Show QR Code for @BotFather';
+        return;
+    }
+
+    if (img.src) {
+        container.classList.remove('hidden');
+        btn.textContent = 'Hide QR Code';
+        return;
+    }
+
+    try {
+        const resp = await fetch(PREFIX + '/telegram/generate-qr');
+        const data = await resp.json();
+        img.src = data.qr;
+        container.classList.remove('hidden');
+        btn.textContent = 'Hide QR Code';
+    } catch(e) {
+        console.error(e);
+    }
+}
+</script>
+{% endblock %}
