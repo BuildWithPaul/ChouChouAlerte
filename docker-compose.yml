@@ -1,0 +1,18 @@
+services:
+  chouchoularte:
+    build: .
+    container_name: chouchoularte
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - APPLICATION_ROOT=/chouchoularte
+      - DATABASE_URL=sqlite:///data/chouchou.db
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "5000"
+
+    # For direct testing without caddy:
+    # ports:
+    #   - "5000:5000"

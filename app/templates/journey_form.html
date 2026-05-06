@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">
+        {% if journey %}Edit Journey{% else %}New Journey{% endif %}
+    </h1>
+
+    <form method="POST" id="journeyForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" id="departure_station_id" name="departure_station_id" value="{{ journey.departure_station_id if journey else '' }}">
+        <input type="hidden" id="arrival_station_id" name="arrival_station_id" value="{{ journey.arrival_station_id if journey else '' }}">
+
+        <!-- Departure station -->
+        <div class="mb-5">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">🚉 Departure Station</label>
+            <div class="relative">
+                <input type="text" id="departure_search" name="departure_station_name"
+                       value="{{ journey.departure_station_name if journey else '' }}"
+                       placeholder="Search station..."
+                       autocomplete="off"
+                       class="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-sncf-blue focus:outline-none transition">
+                <div id="departure_results" class="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 hidden max-h-48 overflow-y-auto"></div>
+            </div>
+        </div>
+
+        <!-- Arrival station -->
+        <div class="mb-5">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">🏁 Arrival Station</label>
+            <div class="relative">
+                <input type="text" id="arrival_search" name="arrival_station_name"
+                       value="{{ journey.arrival_station_name if journey else '' }}"
+                       placeholder="Search station..."
+                       autocomplete="off"
+                       class="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-sncf-blue focus:outline-none transition">
+                <div id="arrival_results" class="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 hidden max-h-48 overflow-y-auto"></div>
+            </div>
+        </div>
+
+        <!-- Time slot -->
+        <div class="mb-5">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">🕐 Time Slot</label>
+            <p class="text-xs text-gray-500 mb-2">You will be notified of disruptions during this time window</p>
+            <div class="flex gap-3 items-center">
+                <input type="time" id="time_start" name="time_start"
+                       value="{{ journey.time_start if journey else '07:00' }}"
+                       class="px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-sncf-blue focus:outline-none transition">
+                <span class="text-gray-400 font-medium">to</span>
+                <input type="time" id="time_end" name="time_end"
+                       value="{{ journey.time_end if journey else '09:00' }}"
+                       class="px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-sncf-blue focus:outline-none transition">
+            </div>
+        </div>
+
+        <!-- Days of week -->
+        <div class="mb-6">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">📅 Days of Week</label>
+            <p class="text-xs text-gray-500 mb-3">Select which days you want to receive notifications</p>
+            <div class="flex gap-2" id="daysContainer">
+                {% set day_labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] %}
+                {% if journey %}
+                    {% set active_days = journey.get_days_list() %}
+                {% else %}
+                    {% set active_days = [0,1,2,3,4,5,6] %}
+                {% endif %}
+                {% for i in range(7) %}
+                <button type="button" onclick="toggleDay({{ i }})"
+                        data-day="{{ i }}"
+                        class="day-btn w-12 h-12 rounded-lg font-bold text-sm transition
+                        {% if i in active_days %}bg-sncf-blue text-white shadow-md{% else %}bg-gray-100 text-gray-400{% endif %}">
+                    {{ day_labels[i] }}
+                </button>
+                {% endfor %}
+            </div>
+            <input type="hidden" id="daysInput" name="days" value="{{ active_days | join(',') }}">
+        </div>
+
+        <!-- Submit -->
+        <div class="flex gap-3">
+            <a href="{{ url_for('main.index') }}" class="px-6 py-3 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition font-medium">Cancel</a>
+            <button type="submit"
+                    class="flex-1 px-6 py-3 rounded-lg bg-sncf-blue text-white hover:bg-blue-700 transition font-medium">
+                {% if journey %}Update Journey{% else %}Add Journey{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PREFIX = window.APP_PREFIX || '';
+const selectedDays = new Set([{% if journey %}{{ journey.get_days_list() | join(',') }}{% else %}0,1,2,3,4,5,6{% endif %}]);
+
+function toggleDay(day) {
+    const btn = document.querySelector(`[data-day="${day}"]`);
+    if (selectedDays.has(day)) {
+        selectedDays.delete(day);
+        btn.classList.remove('bg-sncf-blue', 'text-white', 'shadow-md');
+        btn.classList.add('bg-gray-100', 'text-gray-400');
+    } else {
+        selectedDays.add(day);
+        btn.classList.remove('bg-gray-100', 'text-gray-400');
+        btn.classList.add('bg-sncf-blue', 'text-white', 'shadow-md');
+    }
+    document.getElementById('daysInput').value = Array.from(selectedDays).sort().join(',');
+}
+
+// Station search autocomplete
+let searchTimeout;
+function setupStationSearch(inputId, resultsId, hiddenId) {
+    const input = document.getElementById(inputId);
+    const results = document.getElementById(resultsId);
+    const hidden = document.getElementById(hiddenId);
+
+    input.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        const q = input.value.trim();
+        if (q.length < 2) { results.classList.add('hidden'); return; }
+
+        searchTimeout = setTimeout(async () => {
+            try {
+                const resp = await fetch(PREFIX + '/api/stations?q=' + encodeURIComponent(q));
+                const stations = await resp.json();
+                results.innerHTML = '';
+                if (stations.length === 0) {
+                    results.innerHTML = '<div class="px-4 py-2 text-gray-500 text-sm">No stations found</div>';
+                } else {
+                    stations.forEach(s => {
+                        const div = document.createElement('div');
+                        div.className = 'px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm text-gray-700';
+                        div.textContent = s.name;
+                        div.addEventListener('click', () => {
+                            input.value = s.name;
+                            hidden.value = s.id;
+                            results.classList.add('hidden');
+                        });
+                        results.appendChild(div);
+                    });
+                }
+                results.classList.remove('hidden');
+            } catch(e) { console.error(e); }
+        }, 300);
+    });
+
+    input.addEventListener('blur', () => {
+        setTimeout(() => results.classList.add('hidden'), 200);
+    });
+}
+
+setupStationSearch('departure_search', 'departure_results', 'departure_station_id');
+setupStationSearch('arrival_search', 'arrival_results', 'arrival_station_id');
+</script>
+{% endblock %}
